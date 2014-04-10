@@ -47,7 +47,6 @@ def runfolder(run):
 
 def browseROCChain(files,  func, *args):
     for file in files:
-        f = ROOT.TFile.Open(file)
         try:
             f = ROOT.TFile.Open(file)
         except IOError:

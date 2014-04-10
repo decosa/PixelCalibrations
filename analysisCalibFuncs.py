@@ -30,8 +30,17 @@ import ROOT
 from array import array
 
 
-def fitVcalVcThr( ofile, savePlots):
+def fitVcalVcThr(path,  savePlots):
 
+    if not os.path.isfile(path + 'mapRocVcalVcThr.txt'):
+        ofile = open(path + 'mapRocVcalVcThr.txt', 'w')
+        ofile.write('='*60)    
+        ofile.write('\nROC name                              a      b     chi2/NDF \n')
+        ofile.write('='*60)
+        ofile.write('\nVcal = a + b*VcThr \n')
+        ofile.write('='*60)
+    else: ofile = open(path + 'mapRocVcalVcThr.txt', 'a')
+ 
     for roc in ROOT.gDirectory.GetListOfKeys(): # ROCs, e.g.:  BmI_SEC4_LYR1_LDR5F_MOD1_ROC0
         cName =  roc.GetName()
         h = roc.ReadObj().GetPrimitive(cName)
@@ -73,9 +82,35 @@ def fitVcalVcThr( ofile, savePlots):
             VcThrVcal_graph.Draw("A*")
             c.Print("plots/" + cName+".pdf")
 
-        
+
+
+def checkROCthr(path):
+    filename = path + 'FailingROCs.txt'    
+    if not os.path.isfile(filename):
+        ofile = open(filename, 'w')
+        print "File ", filename, " does not exist. Creating a new one "
+        ofile.write('='*60)    
+        ofile.write('FalingROC name                              ThrMean      ThrRMS     \n')
+        ofile.write('='*60)    
+    else:
+      ofile = open(filename, 'a')
+
+    for roc in ROOT.gDirectory.GetListOfKeys(): # ROCs, e.g.:  BmI_SEC4_LYR1_LDR5F_MOD1_ROC0
+        name =  roc.GetName()
+        if(name.endswith("Threshold1D")):
+            h = roc.ReadObj()
+            #print "ROC Name: ", name.strip("_Threshold1D")
+            #print "ROC Mean: %.2f"%(h.GetMean())
+            if(h.GetMean()<35): 
+                ofile.write('\n%s  %.2f  %.2f'%(name.replace("_Threshold1D", ""), h.GetMean(), h.GetRMS()) )
+                print "ROC Name: ", name
+
 def readHistoInfo(name):
     a =    ROOT.gDirectory.Get(name)
     print a.GetTitle()
     print "RMS   Mean"
     print  '%.2f  %.2f'%(a.GetRMS(), a.GetMean())
+    return a
+
+
+

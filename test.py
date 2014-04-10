@@ -48,19 +48,28 @@ print files
 if len(files)<1:
     sys.exit('Could not find ', filename, ' file')
 else: 
+
+    #    if os.path.isfile(path + 'mapRocVcalVcThr.txt'):
+ #   ofile = open(path + 'mapRocVcalVcThr.txt', 'a')
+
+
 #    mapRocVcalVcThr = open('mapRocVcalVcThr.txt', 'w')
 #    mapRocVcalVcThr.write('\nROC name                              a      b     chi2/NDF \n')
 #    mapRocVcalVcThr.write('='*60)
 #    mapRocVcalVcThr.write('\nVcal = a + b*VcThr \n')
 #    mapRocVcalVcThr.write('='*60)
 
-   ofile = open('testSCurve.txt', 'w')
+#   ofile = open('testSCurve.txt', 'w')
 #   browseFolder(files, "Summaries", readHistoInfo, "RmsThreshold")
 
 #   browseFolder(files, "Summaries", dummy, ofile, "RmsThreshold")
 
  
 #    browsePixChain(files, getSCurveResults, ofile)
-   browseROCChain(files, fitVcalVcThr, ofile, opt.savePlots)
+#    browseROCChain(files, fitVcalVcThr, path, opt.savePlots)
+    browseROCChain(files, checkROCthr, path)
+
+
+
 #    mapRocVcalVcThr.write('\n')
 #    mapRocVcalVcThr.close()
