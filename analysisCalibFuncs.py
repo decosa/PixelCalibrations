@@ -10,13 +10,22 @@
 #  Description: Collection of utility functions for the analysis
 #  of calibration-result files.   
 #  
-#  - fitVcalVcThr(ofile, savePlots): loop over the objects within the folder
+#  - fitVcalVcThr(path, savePlots): loop over the objects within the folder
 #    and pick up the canvanses saved for each ROC, perform a fit to the Vcal(VcThr)
 #    distribution and write down to an output file (ofile) the values of the Parameters
 #    a and b and the chi2/NDF - Fit function => Vcal = a + b*VcThr
-#    -- ofile: output file
+#    -- path: position of the output file. No need to specify the name of the file,
+#       if it does not exist it will be created in the run folder, if it does already
+#       it will be just updated (new info appended to the file).
 #    -- savePlots: savePlots to plots folder, default is False
-#    
+#
+#  - checkROCthr(path): pick up the threshold histogram ("Threshold1D") for each ROC
+#    and check whether the mean is less than 35, in this case flag the ROC as failing
+#    and add it to the list of failing ROCs in the output file
+#    -- path: position of the output file. No need to specify the name of the file,
+#       if it does not exist it will be created in the run folder, if it does already
+#       it will be just updated (new info appended to the file).
+#
 #  - readHistoInfo(name): pick up the histogram corresponding to
 #    the specified name and print Mean and RMS of the distribution
 #    -- name: name of the histo
