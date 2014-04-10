@@ -20,6 +20,13 @@
 #    -- func:    function to execute
 #    -- *args:   arguments to pass to the function
 #
+#  - browseFEDChannels(files,  func, *args): opens all the files of the list
+#    and accesses the FED directory and all the channel folders stored inside. 
+#    e.g FED26/FED26_Channel1
+#    -- files:   list of files to open and browse 
+#    -- func:    function to execute
+#    -- *args:   arguments to pass to the function
+#
 #  - browseFolder(files, dirName,  func, *args): opens all the files
 #    of the list and accesses the directory called dirName, and 
 #    executes the function func.
@@ -44,7 +51,6 @@ def runfolder(run):
     return f 
 
 
-
 def browseROCChain(files,  func, *args):
     for file in files:
         try:
@@ -63,7 +69,8 @@ def browseROCChain(files,  func, *args):
                         r.ReadObj().cd()
 
                         for shell in ROOT.gDirectory.GetListOfKeys(): # BmI, BmO, BpI, BpO folders
-                            shell.ReadObj().cd()
+                            if shell.IsFolder():
+                                shell.ReadObj().cd()
                             
                             for sect in ROOT.gDirectory.GetListOfKeys(): # Sector folders, e.g: BmI_SEC4
                                 if sect.IsFolder():
@@ -88,6 +95,28 @@ def browseROCChain(files,  func, *args):
         
 
 
+
+def browseFEDChannels(files,  func, *args):
+    for file in files:
+        try:
+            f = ROOT.TFile.Open(file)
+        except IOError:
+            print "Cannot open ", file
+        else:
+            print "Opening file ",  file
+            f.cd()
+            
+            ### Browse the file up to the last directory
+
+            for fedDir in ROOT.gDirectory.GetListOfKeys(): # access FED folder
+                if(fedDir.ReadObj().GetName().startswith("FED")):
+                    if fedDir.IsFolder():
+                        fedDir.ReadObj().cd()
+
+                        for ch in ROOT.gDirectory.GetListOfKeys(): # FED channels
+                            if ch.IsFolder():
+                                ch.ReadObj().cd()
+                                func(*args)
 
                                                       
 
