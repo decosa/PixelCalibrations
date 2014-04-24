@@ -37,11 +37,11 @@ import sys
 import os, commands
 import ROOT
 from array import array
+import string
 
 
-
-#dacdir      = os.environ['PIXELCONFIGURATIONBASE']+'/dac'
-confpath    = "Run_1000/configurations.txt"
+dacdir      = os.environ['PIXELCONFIGURATIONBASE'] +'/dac/'
+confpath    = os.environ['PIXELCONFIGURATIONBASE'] +"/configurations.txt"
 
 def fitVcalVcThr(path,  savePlots):
     failingRocs = 0 
@@ -127,7 +127,6 @@ def readHistoInfo(name):
 def createNewDACsettings(path):
     filename = path + 'PixelConfigurationKey.txt'    
     key, dac = 0, 0
-
     # Open the file and look for the key 
     try: 
         f = open(filename, 'r')
@@ -166,11 +165,54 @@ def createNewDACsettings(path):
             print "key ",key
             print "dac ",dac
             print "calib ",calib
-                    
+            newdac =  str(int(dac) + 1)
+  
+            newdir =  path + 'dac/' + newdac
+            os.system('mkdir ' + path + 'dac/')
+            os.system('mkdir ' + newdir)
+            
+            #cmd_dac = "cp -r "+ dacdir +  dac + "/* " + newdir
+            #print  cmd_dac 
+            #os.system(cmd_dac)
+            failingRocs = getFailingRocs(path)
+            createNewDacFiles(dacdir + dac , newdir, failingRocs)
+
 #            cfg.seek(pos)
 
    
 
         
         
+def getFailingRocs(path):
+    filename = path + 'FailingROCs.txt'    
+    try:
+        ofile = open(filename, 'r')
+    except IOError:
+        print "Cannot open ", filename
+    
+    else:
+        lines = ofile.readlines()
+        print "Failing ROCs: ", len(lines)
+        failrocs = [l.split()[0] for l in lines if l.split()[0].startswith("BPix")]
+        print failrocs
+        return failrocs
 
+        
+def createNewDacFiles(orgdacpath, newdacpath, failingRocs):
+    files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
+    failingRocs = ["BPix_BpI_SEC1_LYR3_LDR2F_MOD1_ROC0"]
+    for f in files:
+        delta = 2
+        newdacfile = open(newdacpath + '/'+f, 'w')
+        openfile = open(orgdacpath + '/'+ f, 'r') 
+        for line in openfile.readlines():
+            if (line.startswith("ROC")):
+                if line.split()[1] in failingRocs: 
+                    print "Failing Roc"
+                    delta = -4
+                else: delta = 2
+            elif line.startswith('VcThr'): 
+                newVcThr = int(line.split()[1]) + delta                    
+                line = string.replace(line, str(line.split()[1]), str(newVcThr))
+
+            newdacfile.write(line)
