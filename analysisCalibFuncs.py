@@ -48,6 +48,7 @@ runpath    = os.environ['HOME'] +"/run/"
 def fitVcalVcThr( savePlots):
     failingRocs = 0 
     if not os.path.isfile(runpath + 'mapRocVcalVcThr.txt'):
+        print "Saving Vcal VcThr map in ",runpath + 'mapRocVcalVcThr.txt'
         ofile = open(runpath + 'mapRocVcalVcThr.txt', 'w')
         ofile.write('='*80)    
         ofile.write('\nROC name                              a      b     chi2/NDF   LowestThreshold \n')
@@ -99,10 +100,16 @@ def fitVcalVcThr( savePlots):
     if(failingRocs > 0): print failingRocs, "There were failing ROCs in module: ", cName
 
 
-def checkROCthr(path, iteration):
+### The following functions look into the SCurve results and check for each ROCs
+###if there are failing onces. For the moment a Threshold is defined failing only if the mean threshold is
+###less than 35. Creates a file named failed_N.txt where failing ROCs are listed. N is the number
+###of iteration 
 
-    if not os.path.isfile("failed_%d.txt"%(iteration)):
-        ofile = open("failed_%d.txt"%(iteration),'w')
+
+def checkROCthr(path, iteration):
+    filename = "failed_%d.txt"%(iteration)
+    if not os.path.isfile(filename):
+        ofile = open(filename,'w')
         print "File ", filename, " does not exist. Creating a new one "
         ofile.write('='*60)    
         ofile.write('FalingROC name                              ThrMean      ThrRMS     \n')
@@ -128,6 +135,11 @@ def readHistoInfo(name):
     return a
 
 
+### Create new dac settings staring from the key and so the dac number used for
+###the current Calibration. It checks if there are failing ROCs, and for those
+###increases the threshold of 2 units. It would be possible to add a check on the previous
+###iterations, but let s keep this for a second moment. 
+
 
 def createNewDACsettings(path, iteration):
     
@@ -144,11 +156,9 @@ def createNewDACsettings(path, iteration):
         print key 
 
         dac = findDacFromKey(key)
-        print "key ",key
-        print "dac ",dac
         subdirs = [ int(x) for x in os.walk(dacdir).next()[1] ] 
         subdirs.sort()
-        print 'Last dac dir : ', subdirs[-1]    
+        print 'Last dac dir: ', subdirs[-1]    
         lastsettings = subdirs[-1]
         newsettings = subdirs[-1]+1       
         newdir =  path + 'dac/' + str(newsettings) 
@@ -173,7 +183,7 @@ def createNewDACsettings(path, iteration):
                     rocname = line.split()[1]
                     if rocname in failingRocs: 
                         print "Failing ROC"
-                        delta = -2
+                        delta = -2 # increasing the threshold of 2 units
                     else: delta = 0
                 elif (line.startswith('VcThr') ): 
                     newVcThr = int(line.split()[1]) + delta
@@ -188,75 +198,77 @@ def createNewDACsettings(path, iteration):
         cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
         print cmd_cpnewdac
         os.system(cmd_cpnewdac)
-
-#        createNewDacFiles(dacdir + dac , newdir, failingRocs)
+        
+        #        createNewDacFiles(dacdir + dac , newdir, failingRocs)
         # --- Make the new dac the default
         #        cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
-   
+        
 
 
+
+### Initialize DAC settings, set VcThr for each ROC at the value found 
+### by the VcThrVcal mapping function and increase it by 2 units.
 def initThresholdMinimizationSCurve(key, iteration):
-    
     dac = findDacFromKey(key)
-    print "key ",key
-    print "dac ",dac
     subdirs = [ int(x) for x in os.walk(dacdir).next()[1] ] 
     subdirs.sort()
-    print 'Last dac dir : ', subdirs[-1]    
+    print 'Last dac dir: ', subdirs[-1]    
     lastsettings = subdirs[-1]
     newsettings = subdirs[-1]+1       
-    newdir =  path + 'dac/' + str(newsettings) 
-    
+    newdir =  os.getcwd() +  '/ThresholdMinimization/dac/' + str(newsettings) 
+    print newdir
     os.makedirs(newdir)
     cmd_cpdac = 'cp -r ' + dacdir + dac + '/*' + newdir
     print cmd_cpdac
     orgdacpath = dacdir + dac
     
     files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
-    
     initDACs =  initDacSettings()
-    delta = 2
+    delta = -2
     for f in files:
         newdacfile = open(newdir + '/'+f, 'w')
         openfile = open(orgdacpath + '/'+ f, 'r') 
                 
         for line in openfile.readlines():
-            print "oldline: ", line        
             newVcThr = line.split()[1]
-            print newVcThr
             if (line.startswith("ROC")):
-               if(line.split()[1] in initDACs.keys()): newVcThr = initDACs[line.split()[1]] - delta 
-               else: 
-                   print "ROC " + line.split()[1]+" not present in the list"
+               if(line.split()[1] in initDACs.keys()): newVcThr = int(initDACs[line.split()[1]]) + delta 
+               # INCLUDE AGAIN THIS CHECK
+               #else:
+               #print "ROC " + line.split()[1]+" not present in the list"
             elif (line.startswith('VcThr') and line.split()[1] in initDACs.keys() ): 
                 line = string.replace(line, str(line.split()[1]), str(newVcThr))
-            print "newline: ", line        
+
             newdacfile.write(line)
         
-        cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
-        print cmd_cpnewdac
-        os.system(cmd_cpnewdac)
-
-#        createNewDacFiles(dacdir + dac , newdir, failingRocs)
-        # --- Make the new dac the default
-        #        cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
+    cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
+    print cmd_cpnewdac
+    os.system(cmd_cpnewdac)
+    
+    # --- Make the new dac the default
+    #        cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
    
 
 
-def findDacFromKey(key):
-    #find dac settings corresponding to the key used for this run
+### Read the file produced by the function creating the map between Vcal and VcThr 
+### and get the minimum VcThr allowed for that ROC. Returns a dictionary storing ROC vs VcThr DAC
 
-    #aliases = open(os.environ['PIXELCONFIGURATIONBASE']+'aliases.txt','r')
-    #a = [item for item in aliases if item.startswith('PixelAlive     %s'%key)]
-    #if len(a)<1:
-    #    sys.exit('ERROR: incorrect key! Please check ')
-    #else:
-    #    aliases.seek(0)
-    #    dac = [item.split()[1] for item in aliases if item.startswith('dac') ]
+def  initDacSettings():
+    filename = runpath + 'mapRocVcalVcThr.txt'    
+    try:
+        ofile = open(filename, 'r')
+    except IOError:
+        print "Cannot open ", filename
+    
+    else:
+        rocDACs = {l.split()[0]:l.split()[4] for l in ofile.readlines() if l.split()[0].startswith("BPix")}
+        ofile.close()
+        return rocDACs
+
+
+def findDacFromKey(key):
 
     dac = []
-    #f =  open(os.environ['PIXELCONFIGURATIONBASE']+'/configurations.txt','r')
-    #if(f): chunks = f.read().split('\n\n')
 
     with open(os.environ['PIXELCONFIGURATIONBASE']+'/configurations.txt','r') as f:
         chunks = f.read().split('\n\n')
@@ -270,55 +282,21 @@ def findDacFromKey(key):
     return dac[0]
 
         
-        
+### Analyse the file produced by CheckROCThr and get a list of failing ROCs        
 def getFailingRocs(path, iteration):
-    try:
-        ofile = open("failed_%d.txt"%(iteration),'r')
-    #        ofile = open(filename, 'r')
-    except IOError:
-        print "Cannot open ", "failed_%d.txt"%(iteration)
-    
-    else:
-        lines = ofile.readlines()
-        print "Failing ROCs: ", len(lines)
-        failrocs = [l.split()[0] for l in lines if l.split()[0].startswith("BPix")]
-        print failrocs
-        ofile.close()
-        return failrocs
+    if(iteration != 0):
+        try:
+            ofile = open("failed_%d.txt"%(iteration),'r')
+        except IOError:
+            print "Cannot open ", "failed_%d.txt"%(iteration)
+            
+        else:
+            lines = ofile.readlines()
+            print "Failing ROCs: ", len(lines)
+            failrocs = [l.split()[0] for l in lines if l.split()[0].startswith("BPix")]
+            #            print failrocs
+            ofile.close()
+            return failrocs
+    else:   return []
 
-        
-def createNewDacFiles(orgdacpath, newdacpath, failingRocs):
-    files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
-    failingRocs = ["BPix_BpI_SEC1_LYR3_LDR2F_MOD1_ROC0"]
-    for f in files:
-        delta = 2
-        newdacfile = open(newdacpath + '/'+f, 'w')
-        openfile = open(orgdacpath + '/'+ f, 'r') 
-        for line in openfile.readlines():
-            if (line.startswith("ROC")):
-                if line.split()[1] in failingRocs: 
-                    print "Failing Roc"
-                    delta = -4
-                else: delta = 2
-            elif line.startswith('VcThr'): 
-                newVcThr = int(line.split()[1]) + delta                    
-                line = string.replace(line, str(line.split()[1]), str(newVcThr))
-
-            newdacfile.write(line)
-
-
-def  initDacSettings():
-    #    leggere mappa
-    #    prendere l'ultimo valore e settare la dac di quella roc a quel valore -2
-
-    filename = runpath + 'mapRocVcalVcThr.txt'    
-    try:
-        ofile = open(filename, 'r')
-    except IOError:
-        print "Cannot open ", filename
-    
-    else:
-        rocDAC = {l.split()[0]:l.split()[4] for l in ofile.readlines() if l.split()[0].startswith("BPix")}
-        ofile.close()
-        return rocDAC
 
