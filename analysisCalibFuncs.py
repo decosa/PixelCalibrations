@@ -96,13 +96,13 @@ def fitVcalVcThr( savePlots):
             c.cd()
             VcThrVcal_graph.Draw("A*")
             c.Print("plots/" + cName+".pdf")
-    if(failingRocs > 0): print failingRocs, "failing ROCs in module: ", cName
+    if(failingRocs > 0): print failingRocs, "There were failing ROCs in module: ", cName
 
 
-def checkROCthr(path):
-    filename = path + 'FailingROCs.txt'    
-    if not os.path.isfile(filename):
-        ofile = open(filename, 'w')
+def checkROCthr(path, iteration):
+
+    if not os.path.isfile("failed_%d.txt"%(iteration)):
+        ofile = open("failed_%d.txt"%(iteration),'w')
         print "File ", filename, " does not exist. Creating a new one "
         ofile.write('='*60)    
         ofile.write('FalingROC name                              ThrMean      ThrRMS     \n')
@@ -129,9 +129,8 @@ def readHistoInfo(name):
 
 
 
-def createNewDACsettings(path):
-
-    iter = 0
+def createNewDACsettings(path, iteration):
+    
     filename = path + 'PixelConfigurationKey.txt'    
     key, dac = 0, 0
     # Open the PIxelConfigurationKey file and look for the key 
@@ -153,38 +152,85 @@ def createNewDACsettings(path):
         lastsettings = subdirs[-1]
         newsettings = subdirs[-1]+1       
         newdir =  path + 'dac/' + str(newsettings) 
-
         os.makedirs(newdir)
-        cmd_cpdac = 'cp -r ' + dacdir + dac + '/*' + newdir
+        cmd_cpdac = 'cp -r ' + dacdir + dac + '/* ' + newdir
         print cmd_cpdac
-        failingRocs = getFailingRocs(path)
+        os.system(cmd_cpdac)
+        failingRocs = getFailingRocs(path, iteration)
         orgdacpath = dacdir + dac
-
-    #        createNewDacFiles(dacdir + dac , newdir, failingRocs)
-
-
         files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
         # just for testing
-        failingRocs = ["BPix_BpI_SEC1_LYR3_LDR2F_MOD1_ROC0"]
-        initDACs =  initDacSettings()
+        failingRocs = ["BPix_BpI_SEC1_LYR3_LDR2F_MOD1_ROC0", "BPix_BpI_SEC1_LYR3_LDR2F_MOD1_ROC1"]
+        deltafilenew = open("delta_%d.txt"%(iteration),'a')
+        
         for f in files:
             newdacfile = open(newdir + '/'+f, 'w')
             openfile = open(orgdacpath + '/'+ f, 'r') 
             delta = 2
             
+            for line in openfile.readlines():
+                if (line.startswith("ROC")):
+                    rocname = line.split()[1]
+                    if rocname in failingRocs: 
+                        print "Failing ROC"
+                        delta = -2
+                    else: delta = 0
+                elif (line.startswith('VcThr') ): 
+                    newVcThr = int(line.split()[1]) + delta
+                    #print "old VcThr: ", int(line.split()[1])
+                    #print "newVcTh: ", newVcThr                    
+                    line = string.replace(line, str(line.split()[1]), str(newVcThr))
+
+                newdacfile.write(line)
+                deltafilenew.write('%s %d\n'%(rocname,delta))
+
+
+        cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
+        print cmd_cpnewdac
+        os.system(cmd_cpnewdac)
+
+#        createNewDacFiles(dacdir + dac , newdir, failingRocs)
+        # --- Make the new dac the default
+        #        cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
+   
+
+
+def initThresholdMinimizationSCurve(key, iteration):
+    
+    dac = findDacFromKey(key)
+    print "key ",key
+    print "dac ",dac
+    subdirs = [ int(x) for x in os.walk(dacdir).next()[1] ] 
+    subdirs.sort()
+    print 'Last dac dir : ', subdirs[-1]    
+    lastsettings = subdirs[-1]
+    newsettings = subdirs[-1]+1       
+    newdir =  path + 'dac/' + str(newsettings) 
+    
+    os.makedirs(newdir)
+    cmd_cpdac = 'cp -r ' + dacdir + dac + '/*' + newdir
+    print cmd_cpdac
+    orgdacpath = dacdir + dac
+    
+    files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
+    
+    initDACs =  initDacSettings()
+    delta = 2
+    for f in files:
+        newdacfile = open(newdir + '/'+f, 'w')
+        openfile = open(orgdacpath + '/'+ f, 'r') 
+                
         for line in openfile.readlines():
+            print "oldline: ", line        
+            newVcThr = line.split()[1]
+            print newVcThr
             if (line.startswith("ROC")):
-                if(iter == 0 and line.split()[1] in initDACs.keys()): newVcThr = initDACs[line.split()[1]] - delta 
-                elif(iter == 0 and line.split()[1] not in initDACs.keys()): newVcThr = -1   
-                else: 
-                    if line.split()[1] in failingRocs:  delta = -4
-                    else: delta = 2
-
-
-            elif (line.startswith('VcThr') and newVcThr!= -1): 
-                if(iter!=0): newVcThr = int(line.split()[1]) + delta                    
+               if(line.split()[1] in initDACs.keys()): newVcThr = initDACs[line.split()[1]] - delta 
+               else: 
+                   print "ROC " + line.split()[1]+" not present in the list"
+            elif (line.startswith('VcThr') and line.split()[1] in initDACs.keys() ): 
                 line = string.replace(line, str(line.split()[1]), str(newVcThr))
-
+            print "newline: ", line        
             newdacfile.write(line)
         
         cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
@@ -195,6 +241,7 @@ def createNewDACsettings(path):
         # --- Make the new dac the default
         #        cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
    
+
 
 def findDacFromKey(key):
     #find dac settings corresponding to the key used for this run
@@ -224,12 +271,12 @@ def findDacFromKey(key):
 
         
         
-def getFailingRocs(path):
-    filename = path + 'FailingROCs.txt'    
+def getFailingRocs(path, iteration):
     try:
-        ofile = open(filename, 'r')
+        ofile = open("failed_%d.txt"%(iteration),'r')
+    #        ofile = open(filename, 'r')
     except IOError:
-        print "Cannot open ", filename
+        print "Cannot open ", "failed_%d.txt"%(iteration)
     
     else:
         lines = ofile.readlines()
