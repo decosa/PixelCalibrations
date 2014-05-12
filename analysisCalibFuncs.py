@@ -123,9 +123,13 @@ def checkROCthr(path, iteration):
             h = roc.ReadObj()
             #print "ROC Name: ", name.strip("_Threshold1D")
             #print "ROC Mean: %.2f"%(h.GetMean())
+            nPixelsOutRange = h.Integral(0, h.FindBin(30)) + h.Integral( h.FindBin(120), h.GetNbinsX()+2) 
             if(h.GetMean()<35): 
                 ofile.write('\n%s  %.2f  %.2f'%(name.replace("_Threshold1D", ""), h.GetMean(), h.GetRMS()) )
-                print "ROC Name: ", name
+                print "ROC failing because of mean Thr <35: ", name
+            elif(nPixelsOutRange >2):
+                print "ROC failing because pixel Thr out of range: ", name
+                print "Number of bad pixels: " , nPixelsOutRange
 
 def readHistoInfo(name):
     a =    ROOT.gDirectory.Get(name)
