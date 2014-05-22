@@ -42,7 +42,7 @@ from browseCalibFiles import *
 
 dacdir      = os.environ['PIXELCONFIGURATIONBASE'] +'/dac/'
 confpath    = os.environ['PIXELCONFIGURATIONBASE'] +"/configurations.txt"
-#runpath    = os.environ['HOME'] +"/run/"
+runpath     = os.environ['HOME'] + '/run/'
 runDir    = os.environ['POS_OUTPUT_DIRS']
 pixelAnalysisExe   = './bin/linux/x86_64_slc5/PixelAnalysis.exe'
 config             = '/SCurveAnalysis_bpix_one.xml'
@@ -66,28 +66,28 @@ def RunSCurveSmartRangeAnalysis(run):
 
 def fitVcalVcThr( savePlots):
     failingRocs = 0 
-    if not os.path.isfile(runDir + 'mapRocVcalVcThr.txt'):
-        print "Saving New  Vcal VcThr map in ",runDir + 'mapRocVcalVcThr.txt'
-        ofile = open(runDir + 'mapRocVcalVcThr.txt', 'w')
+    if not os.path.isfile(runpath + 'mapRocVcalVcThr.txt'):
+        print "Saving New  Vcal VcThr map in ",runpath + 'mapRocVcalVcThr.txt'
+        ofile = open(runpath + 'mapRocVcalVcThr.txt', 'w')
         ofile.write('='*80)    
         ofile.write('\nROC name                              a      b     chi2/NDF   LowestThreshold \n')
         ofile.write('='*80)
         ofile.write('\nVcThr = a + b*Vcal \n')
         ofile.write('='*80)
     else:
-        ofile = open(runDir + 'mapRocVcalVcThr.txt', 'a')
+        ofile = open(runpath + 'mapRocVcalVcThr.txt', 'a')
 
     for roc in ROOT.gDirectory.GetListOfKeys(): # ROCs, e.g.:  BmI_SEC4_LYR1_LDR5F_MOD1_ROC0
         cName =  roc.GetName()
         h = roc.ReadObj().GetPrimitive(cName)
         step = h.GetYaxis().GetBinWidth(1)
         ### Fit range for intime WBC 
-        #VcalMin = 50
-        #VcalMax = 140    
+        VcalMin = 50
+        VcalMax = 140    
 
         ### Fit range for next WBC 
-        VcalMin = 35
-        VcalMax = 110    
+        #VcalMin = 35
+        #VcalMax = 110    
 
 
         # define the two arrays VcThrs and Vcals,
@@ -101,7 +101,7 @@ def fitVcalVcThr( savePlots):
             bin = h.GetYaxis().FindBin(Vcal)
             h_VcThr= h.ProjectionX("VcThr", bin, bin)
             firstBin = h_VcThr.FindFirstBinAbove(0.4)
-            minVcThr.append( h_VcThr.GetBinCenter( h_VcThr.FindLastBinAbove(0.1) ) )
+            minVcThr.append( h_VcThr.GetBinCenter( h_VcThr.FindLastBinAbove(0.9) ) )
             VcThrs.append(h_VcThr.GetBinCenter(firstBin))
         
         VcThrArray = array('f', VcThrs)
@@ -120,7 +120,7 @@ def fitVcalVcThr( savePlots):
             c.cd()
             VcThrVcal_graph.Draw("A*")
             c.Print("plots/" + cName+".pdf")
-    if(failingRocs > 0): print "There were ", failingRocs, " failing ROCs in module: ", cName
+    if(failingRocs > 0): print "There were ", failingRocs, " failing ROCs in module: ", cName[:-6]
 
 
 ### The following functions look into the SCurve results and check for each ROCs
@@ -141,17 +141,19 @@ def checkROCthr(path, iteration):
       ofile = open(filename, 'a')
 
     for roc in ROOT.gDirectory.GetListOfKeys(): # ROCs, e.g.:  BmI_SEC4_LYR1_LDR5F_MOD1_ROC0
-        name =  roc.GetName().strip("_Threshold1D")
+        name =  roc.GetName()
+        rocname = name.strip("_Threshold1D")
         if(name.endswith("Threshold1D")):
             h = roc.ReadObj()
-            #print "ROC Name: ", name
+            #print "ROC Name: ", rocname
             #print "ROC Mean: %.2f"%(h.GetMean())
             nPixelsOutRange = h.Integral(0, h.FindBin(30)) + h.Integral( h.FindBin(120), h.GetNbinsX()+2) 
+            print '\n%s  %.2f  %.2f'%(rocname, h.GetMean(), h.GetRMS()) 
             if(h.GetMean()<35): 
-                ofile.write('\n%s  %.2f  %.2f'%(name, h.GetMean(), h.GetRMS()) )
-                print "ROC failing because of mean Thr <35: ", name
+                print "ROC failing because of mean Thr <35: ", rocname
+                ofile.write('\n%s  %.2f  %.2f'%(rocname, h.GetMean(), h.GetRMS()) )
             elif(nPixelsOutRange >2):
-                print "ROC failing because pixel Thr out of range: ", name
+                print "ROC failing because pixel Thr out of range: ", rocname
                 print "Number of bad pixels: " , nPixelsOutRange
 
 def readHistoInfo(name):
@@ -191,16 +193,18 @@ def createNewDACsettings(path, iteration):
         print 'Last dac dir: ', subdirs[-1]    
         lastsettings = subdirs[-1]
         newsettings = subdirs[-1]+1       
-        newdir =  path + 'dac/' + str(newsettings) 
+        newdir =  os.getcwd() +  '/ThresholdMinimization/dac/' + str(newsettings)
         os.makedirs(newdir)
-        cmd_cpdac = 'cp -r ' + dacdir + dac + '/* ' + newdir
+        os.makedirs(dacdir + str(newsettings))
+        cmd_cpdac = 'cp -r ' + dacdir + str(dac) + '/* ' + dacdir + str(newsettings)
+        #        cmd_cpdac = 'cp -r ' + dacdir + dac + '/* ' + newdir
         print cmd_cpdac
         os.system(cmd_cpdac)
         failingRocs = getFailingRocs(path, iteration)
+        #        failingRocs = ["BPix_BmI_SEC4_LYR1_LDR5F_MOD1_ROC0"]
         orgdacpath = dacdir + dac
         files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
         # just for testing
-        failingRocs = ["BPix_BpI_SEC1_LYR3_LDR2F_MOD1_ROC0", "BPix_BpI_SEC1_LYR3_LDR2F_MOD1_ROC1"]
         deltafilenew = open("delta_%d.txt"%(iteration),'a')
         
         for f in files:
@@ -210,15 +214,18 @@ def createNewDACsettings(path, iteration):
             
             for line in openfile.readlines():
                 if (line.startswith("ROC")):
+                    #if line.split()[1].startswith("BPix_BmI_SEC4"): print line
                     rocname = line.split()[1]
                     if rocname in failingRocs: 
                         delta = -2 # increasing the threshold of 2 units
                     else: delta = 0
                 elif (line.startswith('VcThr') ): 
                     newVcThr = int(line.split()[1]) + delta
-                    #print "old VcThr: ", int(line.split()[1])
-                    #print "newVcTh: ", newVcThr                    
+                    #print "old dac: ", line.split()[1]
+                    #print "new dac: ", newVcThr
+                    #print "old line: ",line
                     line = string.replace(line, str(line.split()[1]), str(newVcThr))
+                    #print "new line: ",line
 
                 newdacfile.write(line)
                 deltafilenew.write('%s %d\n'%(rocname,delta))
@@ -231,7 +238,7 @@ def createNewDACsettings(path, iteration):
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
         print cmd
-
+        os.system(cmd)
 
 
 ### Initialize DAC settings, set VcThr for each ROC at the value found 
@@ -248,7 +255,8 @@ def initThresholdMinimizationSCurve(path, iteration):
         newdir =  os.getcwd() +  '/ThresholdMinimization/dac/' + str(newsettings) 
         print newdir
         os.makedirs(newdir)
-        cmd_cpdac = 'cp -r ' + dacdir + str(dac) + '/*' + newdir
+        os.makedirs(dacdir + str(newsettings))
+        cmd_cpdac = 'cp -r ' + dacdir + str(dac) + '/* ' + dacdir + str(newsettings)
         print cmd_cpdac
         orgdacpath = dacdir + str(dac)
         
@@ -258,16 +266,18 @@ def initThresholdMinimizationSCurve(path, iteration):
         for f in files:
             newdacfile = open(newdir + '/'+f, 'w')
             openfile = open(orgdacpath + '/'+ f, 'r') 
-                
+            newVcThr = 0
             for line in openfile.readlines():
-                newVcThr = line.split()[1]
+                #                if(line.split()[1].startswith("BPix_BmI_SEC4")): print 'ROC name:', line.split()[1]
+
                 if (line.startswith("ROC")):
-                    if(line.split()[1] in initDACs.keys()): newVcThr = int(initDACs[line.split()[1]]) + delta 
-                    # INCLUDE AGAIN THIS CHECK
-                    #else:
-                    #print "ROC " + line.split()[1]+" not present in the list"
-                elif (line.startswith('VcThr') and line.split()[1] in initDACs.keys() ): 
-                    line = string.replace(line, str(line.split()[1]), str(newVcThr))
+                    if(line.split()[1] in initDACs.keys()): 
+                        newVcThr = int(initDACs[line.split()[1]]) + delta 
+
+                elif (line.startswith('VcThr')): 
+                    if (newVcThr !=0):line = string.replace(line, str(line.split()[1]), str(newVcThr))
+                    newVcThr = 0      
+         
                 newdacfile.write(line)
         
         cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
@@ -277,13 +287,13 @@ def initThresholdMinimizationSCurve(path, iteration):
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
         print cmd
-
+        os.system(cmd)
 
 ### Read the file produced by the function creating the map between Vcal and VcThr 
 ### and get the minimum VcThr allowed for that ROC. Returns a dictionary storing ROC vs VcThr DAC
 
 def  initDacSettings():
-    filename = runDir + 'mapRocVcalVcThr.txt'    
+    filename = runpath + 'mapRocVcalVcThr.txt'    
     try:
         ofile = open(filename, 'r')
     except IOError:
@@ -323,7 +333,7 @@ def getFailingRocs(path, iteration):
             lines = ofile.readlines() 
 
             print "==========================================="
-            print "Failing ROCs: ", len(lines)
+            print "Failing ROCs: ", len(lines) - 3
             print "==========================================="
           
 

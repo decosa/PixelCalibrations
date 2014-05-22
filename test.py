@@ -55,21 +55,34 @@ print "Directory to analyze is ", path
 
 filename = '2DEfficiency'
 if(opt.iter != 0): filename = 'SCurve'
+files = []
 
-files = [ path + file for file in os.listdir(path) if file.startswith(filename) and file.endswith("root")]
-#print files
-if len(files)<1:
-    sys.exit('Could not find ', filename, ' file')
-else: 
 
-    if(opt.iter==0):
+if(opt.iter==0):
+    cmdrm = ('rm '+ runpath + 'mapRocVcalVcThr.txt')
+    print cmdrm
+    os.system(cmdrm)
+    files = [ path + file for file in os.listdir(path) if file.startswith(filename) and file.endswith("root")]
+    if len(files)<1:
+        sys.exit('Could not find ', filename, ' file')
+    else: 
         browseROCChain(files, fitVcalVcThr, opt.savePlots)
         initThresholdMinimizationSCurve(path, opt.iter)
-    else:
-        RunSCurveSmartRangeAnalysis(opt.run)
-#        browseROCChain(files, checkROCthr, path, opt.iter)
-#        createNewDACsettings(path, opt.iter)
-
+else:
+    cmdrm = ('rm '+os.getcwd()+ '/failed_'+str(opt.iter)+'.txt' )
+    print cmdrm
+    os.system(cmdrm)
+    cmdrm = ('rm '+os.getcwd()+ '/delta_'+str(opt.iter)+'.txt' )
+    print cmdrm
+    os.system(cmdrm)
+    RunSCurveSmartRangeAnalysis(opt.run)
+    files = [ path + file for file in os.listdir(path) if file.startswith(filename) and file.endswith("root")]
+    if len(files)<1:
+        sys.exit('Could not find ', filename, ' file')
+    else: 
+        browseROCChain(files, checkROCthr, path, opt.iter)
+        createNewDACsettings(path, opt.iter)
+        
 
     
 
