@@ -35,17 +35,21 @@
 
 import sys
 import os, commands
+#import io
+import time
+import subprocess
 import ROOT
 from array import array
 import string
 from browseCalibFiles import *
 
 dacdir      = os.environ['PIXELCONFIGURATIONBASE'] +'/dac/'
+detconfigdir      = os.environ['PIXELCONFIGURATIONBASE'] +'/detconfig/'
 confpath    = os.environ['PIXELCONFIGURATIONBASE'] +"/configurations.txt"
 runpath     = os.environ['HOME'] + '/run/'
 runDir    = os.environ['POS_OUTPUT_DIRS']
-pixelAnalysisExe   = './bin/linux/x86_64_slc5/PixelAnalysis.exe'
-config             = '/SCurveAnalysis_bpix_one.xml'
+pixelAnalysisExe   = os.environ['BUILD_HOME'] + '/pixel/PixelAnalysisTools/test/bin/linux/i386_slc5/PixelAnalysis.exe'
+config             = runDir + '/SCurveAnalysis_bpix_one.xml'
 
 
 
@@ -61,8 +65,13 @@ def RunSCurveSmartRangeAnalysis(run):
     print "\n=======> Running SCurve Analysis <=======\n"
     cmd = '%s %s %d'%(pixelAnalysisExe, config, run)
     print cmd
-    os.system(cmd) 
-
+    #with io.open("scurve.log", 'wb') as writer:
+    writer =open("scurve.log", 'w') 
+    process = subprocess.call(cmd, shell = True, stdout=writer)
+    cmdrm = ('rm '+ runpath + 'mapRocOffset.txt')
+    print cmdrm
+    os.system(cmdrm)
+    
 
 def fitVcalVcThr( savePlots):
     failingRocs = 0 
@@ -120,7 +129,7 @@ def fitVcalVcThr( savePlots):
             c.cd()
             VcThrVcal_graph.Draw("A*")
             c.Print("plots/" + cName+".pdf")
-    if(failingRocs > 0): print "There were ", failingRocs, " failing ROCs in module: ", cName[:-6]
+    if(failingRocs > 0): print "There were ", failingRocs, " failing ROCs in module: ", cName
 
 
 ### The following functions look into the SCurve results and check for each ROCs
@@ -142,16 +151,19 @@ def checkROCthr(path, iteration):
 
     for roc in ROOT.gDirectory.GetListOfKeys(): # ROCs, e.g.:  BmI_SEC4_LYR1_LDR5F_MOD1_ROC0
         name =  roc.GetName()
-        rocname = name.strip("_Threshold1D")
+        rocname =  name.strip("_Threshold1D")
         if(name.endswith("Threshold1D")):
             h = roc.ReadObj()
-            #print "ROC Name: ", rocname
+            #print "ROC Name: ", name
             #print "ROC Mean: %.2f"%(h.GetMean())
             nPixelsOutRange = h.Integral(0, h.FindBin(30)) + h.Integral( h.FindBin(120), h.GetNbinsX()+2) 
-            print '\n%s  %.2f  %.2f'%(rocname, h.GetMean(), h.GetRMS()) 
-            if(h.GetMean()<35): 
-                print "ROC failing because of mean Thr <35: ", rocname
+            
+            if(h.GetMean()<35 or nPixelsOutRange >2):
                 ofile.write('\n%s  %.2f  %.2f'%(rocname, h.GetMean(), h.GetRMS()) )
+            else: continue
+
+            if(h.GetMean()<35):
+                print "ROC failing because of mean Thr <35: ", rocname
             elif(nPixelsOutRange >2):
                 print "ROC failing because pixel Thr out of range: ", rocname
                 print "Number of bad pixels: " , nPixelsOutRange
@@ -162,6 +174,23 @@ def readHistoInfo(name):
     print "RMS   Mean"
     print  '%.2f  %.2f'%(a.GetRMS(), a.GetMean())
     return a
+
+
+def findDetConfigFromPath(path):
+    
+    filename = path + 'PixelConfigurationKey.txt'    
+    key, detconfig = 0, 0
+    # Open the PIxelConfigurationKey file and look for the key 
+    try: 
+        f = open(filename, 'r')
+    except IOError:
+        print "Cannot open file ", filename
+    else:
+        lines = f.readlines()
+        key = lines[1].split()[-1]
+        #print key 
+        detconfig = findDetConfigFromKey(key)
+    return detconfig
 
 
 ### Create new dac settings staring from the key and so the dac number used for
@@ -185,7 +214,28 @@ def findDacFromPath(path):
         dac = findDacFromKey(key)
     return dac
 
+def listFromFile(filepath):
+    f =open(filepath)
+    flist = f.readlines()[1:]
+    flist = [l.replace(" \n", "") for l in flist] 
+    return flist
+
+def createROCList(path):
+    detconfig = findDetConfigFromPath(path)
+    if(detconfig!=0):
+        detconfiglist =listFromFile(detconfigdir + str(detconfig) + "/detectconfig.dat")
+        #print detconfigfile
+        #detconfiglist = detconfigfile.readlines()[1:]
+        #detconfiglist = [l.replace(" \n", "") for l in detconfiglist] 
+        #print detconfiglist
+        return detconfiglist
+        
 def createNewDACsettings(path, iteration):
+    detconfiglist = createROCList(path)
+    minimizedROCs = []
+    if(iteration>1): minimizedROCs = listFromFile("failed_%d.txt"%(iteration-1))
+    minimizedROCs = [l.split()[0] for l in minimizedROCs if (l.startswith("BPix") or l.startswith("FPix"))]
+    print "ROCs already fixed ", minimizedROCs
     dac = findDacFromPath(path)
     if(dac!=0):
         subdirs = [ int(x) for x in os.walk(dacdir).next()[1] ] 
@@ -210,15 +260,25 @@ def createNewDACsettings(path, iteration):
         for f in files:
             newdacfile = open(newdir + '/'+f, 'w')
             openfile = open(orgdacpath + '/'+ f, 'r') 
-            delta = 2
+            delta = 0
             
             for line in openfile.readlines():
                 if (line.startswith("ROC")):
                     #if line.split()[1].startswith("BPix_BmI_SEC4"): print line
                     rocname = line.split()[1]
-                    if rocname in failingRocs: 
-                        delta = -2 # increasing the threshold of 2 units
-                    else: delta = 0
+                    if(rocname in detconfiglist):
+                        if(rocname in minimizedROCs):
+                            delta = 0 
+                        elif(rocname in failingRocs):
+                            delta = -4 # decrease VcThr of 4 units making the threshold higher   
+                        else:
+                            delta = +2 # lower the threshold
+
+                        deltafilenew.write('%s %d\n'%(rocname,delta))
+                        
+                    else: delta =0
+                    
+                        
                 elif (line.startswith('VcThr') ): 
                     newVcThr = int(line.split()[1]) + delta
                     #print "old dac: ", line.split()[1]
@@ -226,9 +286,9 @@ def createNewDACsettings(path, iteration):
                     #print "old line: ",line
                     line = string.replace(line, str(line.split()[1]), str(newVcThr))
                     #print "new line: ",line
-
+                                        
                 newdacfile.write(line)
-                deltafilenew.write('%s %d\n'%(rocname,delta))
+                
 
 
         cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
@@ -238,6 +298,8 @@ def createNewDACsettings(path, iteration):
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
         print cmd
+        print "New DAC settings dir: dac/%d"%newsettings
+        #        print "N.B: NEW DAC not set as default, do it by hand"
         os.system(cmd)
 
 
@@ -258,6 +320,7 @@ def initThresholdMinimizationSCurve(path, iteration):
         os.makedirs(dacdir + str(newsettings))
         cmd_cpdac = 'cp -r ' + dacdir + str(dac) + '/* ' + dacdir + str(newsettings)
         print cmd_cpdac
+        os.system(cmd_cpdac)
         orgdacpath = dacdir + str(dac)
         
         files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
@@ -280,15 +343,18 @@ def initThresholdMinimizationSCurve(path, iteration):
          
                 newdacfile.write(line)
         
-        cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
+        cmd_cpnewdac = 'cp ' + newdir + "/*.dat " + dacdir + str(newsettings)
         print cmd_cpnewdac
         os.system(cmd_cpnewdac)
         
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
         print cmd
+        
+        print "New DAC settings dir: dac/%d"%newsettings
+        # print "N.B: NEW DAC not set as default, do it by hand"
         os.system(cmd)
-
+        
 ### Read the file produced by the function creating the map between Vcal and VcThr 
 ### and get the minimum VcThr allowed for that ROC. Returns a dictionary storing ROC vs VcThr DAC
 
@@ -319,6 +385,22 @@ def findDacFromKey(key):
         sys.exit("Error: dac not found")
     print "Used key %s with dac %s"%(key,dac[0])
     return dac[0]
+
+
+def findDetConfigFromKey(key):
+
+    detconfig = []
+
+    with open(os.environ['PIXELCONFIGURATIONBASE']+'/configurations.txt','r') as f:
+        chunks = f.read().split('\n\n')
+    for c in chunks:
+        config = c.split('\n')
+        if 'key %s'%key in config:
+            detconfig = [item.split()[1] for item in config if item.startswith('detconfig')]
+    if len(detconfig)<1:
+        sys.exit("Error: detconfig not found")
+    print "Used key %s with detconfig %s"%(key,detconfig[0])
+    return detconfig[0]
 
         
 ### Analyse the file produced by CheckROCThr and get a list of failing ROCs        
