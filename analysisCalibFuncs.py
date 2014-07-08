@@ -91,12 +91,12 @@ def fitVcalVcThr( savePlots):
         h = roc.ReadObj().GetPrimitive(cName)
         step = h.GetYaxis().GetBinWidth(1)
         ### Fit range for intime WBC 
-        VcalMin = 50
-        VcalMax = 140    
+        #VcalMin = 50
+        #VcalMax = 140    
 
         ### Fit range for next WBC 
-        #VcalMin = 35
-        #VcalMax = 110    
+        VcalMin = 35
+        VcalMax = 110    
 
 
         # define the two arrays VcThrs and Vcals,
@@ -218,6 +218,13 @@ def listFromFile(filepath):
     f =open(filepath)
     flist = f.readlines()[1:]
     flist = [l.replace(" \n", "") for l in flist] 
+    return flist
+
+def listFromDeltaFile(filepath):
+    f =open(filepath)
+    flist = f.readlines()[1:]
+    flist = [l.replace(" \n", "") for l in flist] 
+    flist = [l.split()[0] for l in flist if (l.split()[1] == "0" or l.split()[1] == "-4")]
     return flist
 
 def createROCList(path):
