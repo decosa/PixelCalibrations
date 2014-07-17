@@ -35,9 +35,13 @@
 
 import sys
 import os, commands
+import re
 #import io
 import time
 import subprocess
+import glob
+import shutil
+import shlex
 import ROOT
 from array import array
 import string
@@ -95,7 +99,7 @@ def fitVcalVcThr( savePlots):
         #VcalMax = 140    
 
         ### Fit range for next WBC 
-        VcalMin = 35
+        VcalMin = 48
         VcalMax = 110    
 
 
@@ -133,9 +137,9 @@ def fitVcalVcThr( savePlots):
 
 
 ### The following functions look into the SCurve results and check for each ROCs
-###if there are failing onces. For the moment a Threshold is defined failing only if the mean threshold is
-###less than 35. Creates a file named failed_N.txt where failing ROCs are listed. N is the number
-###of iteration 
+### if there are failing ones. For the moment a ROC is defined as failing only if the mean threshold is
+### less than 35. Creates a file named failed_N.txt where failing ROCs are listed. N is the number
+### of iterations 
 
 
 def checkROCthr(path, iteration):
@@ -221,28 +225,35 @@ def listFromFile(filepath):
     return flist
 
 def listFromDeltaFile(filepath):
-    f =open(filepath)
+    f = open(filepath)
     flist = f.readlines()[1:]
     flist = [l.replace(" \n", "") for l in flist] 
     flist = [l.split()[0] for l in flist if (l.split()[1] == "0" or l.split()[1] == "-4")]
     return flist
 
-def createROCList(path):
+def createModuleList(path):
     detconfig = findDetConfigFromPath(path)
     if(detconfig!=0):
         detconfiglist =listFromFile(detconfigdir + str(detconfig) + "/detectconfig.dat")
-        #print detconfigfile
-        #detconfiglist = detconfigfile.readlines()[1:]
-        #detconfiglist = [l.replace(" \n", "") for l in detconfiglist] 
-        #print detconfiglist
-        return detconfiglist
+        mods =[] 
+        for m in detconfiglist:
+            if (("noAnalogSignal" not in m) and ("noInit" not in m)):
+                mod = m.split("_")[:-1]
+                mod = "_".join(mod)
+                if mod not in mods:mods.append(mod)
+            else:
+                print "noAnalogSignal"
+        print "Number of Modules: ", len(mods)
+        print "Number of ROCs: ", len(detconfiglist)
+        files = [ "ROC_DAC_module_"+mod+".dat" for mod in mods]
+        return files
         
 def createNewDACsettings(path, iteration):
-    detconfiglist = createROCList(path)
+    detconfiglist = createModuleList(path)
     minimizedROCs = []
-    if(iteration>1): minimizedROCs = listFromFile("failed_%d.txt"%(iteration-1))
-    minimizedROCs = [l.split()[0] for l in minimizedROCs if (l.startswith("BPix") or l.startswith("FPix"))]
-    print "ROCs already fixed ", minimizedROCs
+    if(iteration>1):
+        minimizedROCs = listFromDeltaFile("delta_%d.txt"%(iteration-1))
+        print "ROCs already fixed ", minimizedROCs
     dac = findDacFromPath(path)
     if(dac!=0):
         subdirs = [ int(x) for x in os.walk(dacdir).next()[1] ] 
@@ -254,36 +265,30 @@ def createNewDACsettings(path, iteration):
         os.makedirs(newdir)
         os.makedirs(dacdir + str(newsettings))
         cmd_cpdac = 'cp -r ' + dacdir + str(dac) + '/* ' + dacdir + str(newsettings)
-        #        cmd_cpdac = 'cp -r ' + dacdir + dac + '/* ' + newdir
         print cmd_cpdac
         os.system(cmd_cpdac)
         failingRocs = getFailingRocs(path, iteration)
-        #        failingRocs = ["BPix_BmI_SEC4_LYR1_LDR5F_MOD1_ROC0"]
         orgdacpath = dacdir + dac
-        files = [ file for file in os.listdir(orgdacpath) if file.startswith("ROC_DAC")]
-        # just for testing
         deltafilenew = open("delta_%d.txt"%(iteration),'a')
         
-        for f in files:
+        for f in detconfiglist:
             newdacfile = open(newdir + '/'+f, 'w')
-            openfile = open(orgdacpath + '/'+ f, 'r') 
+            openfile = open(orgdacpath + '/'+ f, 'r')
             delta = 0
             
             for line in openfile.readlines():
                 if (line.startswith("ROC")):
                     #if line.split()[1].startswith("BPix_BmI_SEC4"): print line
                     rocname = line.split()[1]
-                    if(rocname in detconfiglist):
-                        if(rocname in minimizedROCs):
-                            delta = 0 
-                        elif(rocname in failingRocs):
-                            delta = -4 # decrease VcThr of 4 units making the threshold higher   
-                        else:
-                            delta = +2 # lower the threshold
+                    if(rocname in minimizedROCs):
+                        delta = 0 
+                    elif(rocname in failingRocs):
+                        delta = -4 # decrease VcThr of 4 units making the threshold higher   
+                    else:
+                        delta = +2 # lower the threshold
 
-                        deltafilenew.write('%s %d\n'%(rocname,delta))
+                    deltafilenew.write('%s %d\n'%(rocname,delta))
                         
-                    else: delta =0
                     
                         
                 elif (line.startswith('VcThr') ): 
@@ -298,16 +303,27 @@ def createNewDACsettings(path, iteration):
                 
 
 
-        cmd_cpnewdac = 'cp -r ' + newdir + " " + dacdir 
-        print cmd_cpnewdac
-        os.system(cmd_cpnewdac)
-        
+
+        # --- Print a summary         
+        deltafilenew = open("delta_%d.txt"%(iteration),'r')
+        rocs = deltafilenew.readlines()
+        print 'Number of ROCs already failing at the previous iterations:'
+        print        len([ l for l in rocs if re.search(' 0',l) ])
+        print 'Number of ROC failing at this iteration:'
+        print        len([ l for l in rocs if re.search(' -4',l) ])
+        print 'Number of ROC still succeeding:'
+        print        len([ l for l in rocs if re.search(' 2',l) ])
+
+        # --- Copy the new dac files in the newly created dac directory 
+        dest_dir = dacdir + str(newsettings)
+        for f in glob.glob( newdir + "/*.dat "):
+            shutil.copy(f, dest_dir)
+
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
-        print cmd
-        print "New DAC settings dir: dac/%d"%newsettings
-        #        print "N.B: NEW DAC not set as default, do it by hand"
-        os.system(cmd)
+        #print cmd
+        #print "New DAC settings dir: dac/%d"%newsettings
+        #os.system(cmd)
 
 
 ### Initialize DAC settings, set VcThr for each ROC at the value found 
@@ -357,7 +373,6 @@ def initThresholdMinimizationSCurve(path, iteration):
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
         print cmd
-        
         print "New DAC settings dir: dac/%d"%newsettings
         # print "N.B: NEW DAC not set as default, do it by hand"
         os.system(cmd)
@@ -420,15 +435,9 @@ def getFailingRocs(path, iteration):
             
         else:
             lines = ofile.readlines() 
-
-            print "==========================================="
             print "Failing ROCs: ", len(lines) - 3
-            print "==========================================="
-          
-
             rocs = [l.split()[0] for l in lines]
             failrocs = [l.split()[0] for l in lines if (l.startswith("BPix") or l.startswith("FPix"))]
-            #            print failrocs
             ofile.close()
             return failrocs
     else:   return []
