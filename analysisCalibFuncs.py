@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 # *************************************************************************************
@@ -99,8 +100,8 @@ def fitVcalVcThr( savePlots):
         #VcalMax = 140    
 
         ### Fit range for next WBC 
-        VcalMin = 48
-        VcalMax = 110    
+        VcalMin = 56
+        VcalMax = 90
 
 
         # define the two arrays VcThrs and Vcals,
@@ -241,8 +242,8 @@ def createModuleList(path):
                 mod = m.split("_")[:-1]
                 mod = "_".join(mod)
                 if mod not in mods:mods.append(mod)
-            else:
-                print "noAnalogSignal"
+                #           else:
+                #print "noAnalogSignal"
         print "Number of Modules: ", len(mods)
         print "Number of ROCs: ", len(detconfiglist)
         files = [ "ROC_DAC_module_"+mod+".dat" for mod in mods]
@@ -262,11 +263,16 @@ def createNewDACsettings(path, iteration):
         lastsettings = subdirs[-1]
         newsettings = subdirs[-1]+1       
         newdir =  os.getcwd() +  '/ThresholdMinimization/dac/' + str(newsettings)
+        print 'New dir: ', newdir
         os.makedirs(newdir)
         os.makedirs(dacdir + str(newsettings))
         cmd_cpdac = 'cp -r ' + dacdir + str(dac) + '/* ' + dacdir + str(newsettings)
+
         print cmd_cpdac
         os.system(cmd_cpdac)
+
+
+
         failingRocs = getFailingRocs(path, iteration)
         orgdacpath = dacdir + dac
         deltafilenew = open("delta_%d.txt"%(iteration),'a')
@@ -274,6 +280,8 @@ def createNewDACsettings(path, iteration):
         for f in detconfiglist:
             newdacfile = open(newdir + '/'+f, 'w')
             openfile = open(orgdacpath + '/'+ f, 'r')
+            #print 'Original file: ', orgdacpath + '/'+ f
+            #print 'New file: ', newdir + '/'+f
             delta = 0
             
             for line in openfile.readlines():
@@ -289,8 +297,6 @@ def createNewDACsettings(path, iteration):
 
                     deltafilenew.write('%s %d\n'%(rocname,delta))
                         
-                    
-                        
                 elif (line.startswith('VcThr') ): 
                     newVcThr = int(line.split()[1]) + delta
                     #print "old dac: ", line.split()[1]
@@ -300,7 +306,13 @@ def createNewDACsettings(path, iteration):
                     #print "new line: ",line
                                         
                 newdacfile.write(line)
-                
+
+
+
+            #dest_dir = dacdir + str(newsettings)
+            #print "destination folder: ", dest_dir + "/"
+            #print "source file:", newdir + '/'+f
+            #shutil.copy(newdir + '/'+f, dest_dir)
 
 
 
@@ -316,7 +328,10 @@ def createNewDACsettings(path, iteration):
 
         # --- Copy the new dac files in the newly created dac directory 
         dest_dir = dacdir + str(newsettings)
-        for f in glob.glob( newdir + "/*.dat "):
+        #print "destination folder: ", dest_dir + "/"
+        #print "source folder:", newdir + "/*.dat "
+        for f in glob.glob( newdir + "/*.dat"):
+            print f
             shutil.copy(f, dest_dir)
 
         # --- Make the new dac the default
@@ -373,9 +388,9 @@ def initThresholdMinimizationSCurve(path, iteration):
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
         print cmd
-        print "New DAC settings dir: dac/%d"%newsettings
+        #print "New DAC settings dir: dac/%d"%newsettings
         # print "N.B: NEW DAC not set as default, do it by hand"
-        os.system(cmd)
+        #os.system(cmd)
         
 ### Read the file produced by the function creating the map between Vcal and VcThr 
 ### and get the minimum VcThr allowed for that ROC. Returns a dictionary storing ROC vs VcThr DAC
