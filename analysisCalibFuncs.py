@@ -156,7 +156,7 @@ def checkROCthr(path, iteration):
 
     for roc in ROOT.gDirectory.GetListOfKeys(): # ROCs, e.g.:  BmI_SEC4_LYR1_LDR5F_MOD1_ROC0
         name =  roc.GetName()
-        rocname =  name.strip("_Threshold1D")
+        rocname =  name.replace("_Threshold1D", "")
         if(name.endswith("Threshold1D")):
             h = roc.ReadObj()
             #print "ROC Name: ", name
@@ -307,9 +307,8 @@ def createNewDACsettings(path, iteration):
                                         
                 newdacfile.write(line)
 
-
-
-            #dest_dir = dacdir + str(newsettings)
+            newdacfile.close()
+                          #dest_dir = dacdir + str(newsettings)
             #print "destination folder: ", dest_dir + "/"
             #print "source file:", newdir + '/'+f
             #shutil.copy(newdir + '/'+f, dest_dir)
@@ -331,14 +330,14 @@ def createNewDACsettings(path, iteration):
         #print "destination folder: ", dest_dir + "/"
         #print "source folder:", newdir + "/*.dat "
         for f in glob.glob( newdir + "/*.dat"):
-            print f
+            #print f
             shutil.copy(f, dest_dir)
 
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
-        #print cmd
-        #print "New DAC settings dir: dac/%d"%newsettings
-        #os.system(cmd)
+        print cmd
+        print "New DAC settings dir: dac/%d"%newsettings
+        os.system(cmd)
 
 
 ### Initialize DAC settings, set VcThr for each ROC at the value found 
