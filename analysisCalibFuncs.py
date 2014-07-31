@@ -223,6 +223,7 @@ def listFromFile(filepath):
     f =open(filepath)
     flist = f.readlines()[1:]
     flist = [l.replace(" \n", "") for l in flist] 
+    f.close()
     return flist
 
 def listFromDeltaFile(filepath):
@@ -230,6 +231,7 @@ def listFromDeltaFile(filepath):
     flist = f.readlines()[1:]
     flist = [l.replace(" \n", "") for l in flist] 
     flist = [l.split()[0] for l in flist if (l.split()[1] == "0" or l.split()[1] == "-4")]
+    f.close()
     return flist
 
 def createModuleList(path):
@@ -254,7 +256,7 @@ def createNewDACsettings(path, iteration):
     minimizedROCs = []
     if(iteration>1):
         minimizedROCs = listFromDeltaFile("delta_%d.txt"%(iteration-1))
-        print "ROCs already fixed ", minimizedROCs
+        #print "ROCs already fixed ", minimizedROCs
     dac = findDacFromPath(path)
     if(dac!=0):
         subdirs = [ int(x) for x in os.walk(dacdir).next()[1] ] 
@@ -308,13 +310,14 @@ def createNewDACsettings(path, iteration):
                 newdacfile.write(line)
 
             newdacfile.close()
+            openfile.close()
                           #dest_dir = dacdir + str(newsettings)
             #print "destination folder: ", dest_dir + "/"
             #print "source file:", newdir + '/'+f
             #shutil.copy(newdir + '/'+f, dest_dir)
 
 
-
+        deltafilenew.close()
         # --- Print a summary         
         deltafilenew = open("delta_%d.txt"%(iteration),'r')
         rocs = deltafilenew.readlines()
@@ -324,7 +327,7 @@ def createNewDACsettings(path, iteration):
         print        len([ l for l in rocs if re.search(' -4',l) ])
         print 'Number of ROC still succeeding:'
         print        len([ l for l in rocs if re.search(' 2',l) ])
-
+        deltafilenew.close()
         # --- Copy the new dac files in the newly created dac directory 
         dest_dir = dacdir + str(newsettings)
         #print "destination folder: ", dest_dir + "/"
