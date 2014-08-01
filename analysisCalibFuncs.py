@@ -228,7 +228,7 @@ def listFromFile(filepath):
 
 def listFromDeltaFile(filepath):
     f = open(filepath)
-    flist = f.readlines()[1:]
+    flist = f.readlines()
     flist = [l.replace(" \n", "") for l in flist] 
     flist = [l.split()[0] for l in flist if (l.split()[1] == "0" or l.split()[1] == "-4")]
     f.close()
@@ -247,12 +247,13 @@ def createModuleList(path):
                 #           else:
                 #print "noAnalogSignal"
         print "Number of Modules: ", len(mods)
-        print "Number of ROCs: ", len(detconfiglist)
+        print "Total number of ROCs in detconfig file: ", len(detconfiglist)
         files = [ "ROC_DAC_module_"+mod+".dat" for mod in mods]
         return files
         
 def createNewDACsettings(path, iteration):
     detconfiglist = createModuleList(path)
+    #print "detconfiglist size: ", len(detconfiglist)
     minimizedROCs = []
     if(iteration>1):
         minimizedROCs = listFromDeltaFile("delta_%d.txt"%(iteration-1))
@@ -311,11 +312,7 @@ def createNewDACsettings(path, iteration):
 
             newdacfile.close()
             openfile.close()
-                          #dest_dir = dacdir + str(newsettings)
-            #print "destination folder: ", dest_dir + "/"
-            #print "source file:", newdir + '/'+f
-            #shutil.copy(newdir + '/'+f, dest_dir)
-
+         
 
         deltafilenew.close()
         # --- Print a summary         
@@ -338,9 +335,9 @@ def createNewDACsettings(path, iteration):
 
         # --- Make the new dac the default
         cmd = 'PixelConfigDBCmd.exe --insertVersionAlias dac %d Default'%newsettings
-        print cmd
-        print "New DAC settings dir: dac/%d"%newsettings
-        os.system(cmd)
+        #print cmd
+        #print "New DAC settings dir: dac/%d"%newsettings
+        #os.system(cmd)
 
 
 ### Initialize DAC settings, set VcThr for each ROC at the value found 
