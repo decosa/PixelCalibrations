@@ -9,8 +9,8 @@
 #           March/2014
 #  
 #  Description:
-#  CalibUtilies are a set of tools aimed to carry out common functions 
-#  for the analysis of calibrations results which are stored in root files.
+#  Here a set of tools aimed to browse calibration files are collected.
+#
 #
 #  - browseROCChain(files,  func, *args): opens all the files from the list
 #    and browse the directories up to the last one containing info on the ROCs 
@@ -72,21 +72,21 @@ def browseROCChain(files,  func, *args):
                             if shell.IsFolder():
                                 shell.ReadObj().cd()
                             
-                            for sect in ROOT.gDirectory.GetListOfKeys(): # Sector folders, e.g: BmI_SEC4
-                                if sect.IsFolder():
-                                    sect.ReadObj().cd()
+                            for disk in ROOT.gDirectory.GetListOfKeys(): # Disk folders, e.g: BmI_D1
+                                if disk.IsFolder():
+                                    disk.ReadObj().cd()
                                     
-                                    for ly in ROOT.gDirectory.GetListOfKeys(): # Layer folders, e.g.: BmI_SEC4_LYR1
-                                        if ly.IsFolder():
-                                            ly.ReadObj().cd()
+                                    for bld in ROOT.gDirectory.GetListOfKeys(): # Blade folders, e.g.: BmI_D1_BLD1
+                                        if bld.IsFolder():
+                                            bld.ReadObj().cd()
 
-                                            for ld in ROOT.gDirectory.GetListOfKeys(): # ladder folders, e.g.:  BmI_SEC4_LYR1_LDR5F
-                                                if ld.IsFolder():
-                                                    ld.ReadObj().cd()
+                                            for pnl in ROOT.gDirectory.GetListOfKeys(): # Panel folders, e.g.:  BmI_D1_BLD1_PNL1
+                                                if pnl.IsFolder():
+                                                    pnl.ReadObj().cd()
                                                     
-                                                    for mod in ROOT.gDirectory.GetListOfKeys(): # module folders, e.g.:  BmI_SEC4_LYR1_LDR5F_MOD1
-                                                        if mod.IsFolder():
-                                                            mod.ReadObj().cd()
+                                                    for plq in ROOT.gDirectory.GetListOfKeys(): # Plaquette folders, e.g.:  BmI_D1_BLD1_PNL1_PLQ1
+                                                        if plq.IsFolder():
+                                                            plq.ReadObj().cd()
                                                             
                                                             func(*args)
 
@@ -139,6 +139,3 @@ def browseFolder(files, treeName,  func, *args):
             else:
                 list = ROOT.gDirectory.GetListOfKeys()
                 func(*args)
-                
-
-
