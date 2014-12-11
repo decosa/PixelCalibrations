@@ -1,18 +1,31 @@
 #!/usr/bin/env python
 
-# **********************************************************
+# **************************************************************************************
 #
 #  Author: Annapaola de Cosa
 #          decosa@cern.ch
 #          March/2014
 #
-#  test.py
-#  Usage: test.py -r runNum -i iter -k key 
 #  Description: Script to run Threshold Minimization
-#               Procedure with SCurveCustomRange
+#               procedure with SCurveSmartRange
 #
-#  Iteration 0: python test.py -r 'runVcThrVcal' -i 0 -d dac 
-# **********************************************************
+#  Iteration 0: python SCurveSR.py -r 'VcThrVcalRunNumber' -i 0
+#
+#               This step analyzes the results from VcThrVcalRunNumber and creates 
+#               the map VcThr-Vcal for each ROC used in the next 
+#               Add  --savePlots True to save fit plots.
+#               Specify --ignore True to ignore errors in case the fits are fine
+#               but the Chi2 exceeds the threshold set in the script
+#
+#
+#  Iteration N: python SCurveSR.py -r 'SCurveSmartRangeRunNumber' -i N --makeNewDac True
+#
+#               It performs the analysis of SCurveSR and looks at the results.
+#               It creates new DAC settings accordingly
+#               
+#
+#
+# ****************************************************************************************
 
 
 
@@ -30,8 +43,15 @@ parser = optparse.OptionParser(usage)
 parser.add_option('-r', '--run', dest='run', type='int', help='Number of the run to analyze')
 parser.add_option('-i', '--iter', dest='iter', type='int', help='Iteration')
 parser.add_option('-k', '--key', dest='key', type='int', help='Starting Key Number')
-parser.add_option('-d', '--dac', dest='dac', type='int', help='Starting dac Number')
+#parser.add_option('-d', '--dac', dest='dac', type='int', help='Starting dac Number')
 parser.add_option('-s', '--savePlots', dest='savePlots', default='False', help='Set this flag to True to save fits to graphs as pdf')
+parser.add_option('', '--ignore', dest='ignore', default='False', help='IgnoreError')
+parser.add_option("-m","--modality",dest="mod",type="string",default="minimize",help="Modality of dac setting: \"minimize\" for minimizing thresholds and \"increase\" to only increase thresholds of failing rocs. Default is \"minimize\"")
+parser.add_option("-o","--outputFile",dest="output",type="string",default="failed",help="Name of the output file containing the list of failing rocs. Default is failed.txt")
+parser.add_option("-d","--deltaFile",dest="delta",type="string",default="delta",help="Name of the output file containing the deltaVcThr. Default is delta.txt")
+parser.add_option("","--makeNewDac",dest="makeNewDac",type="int",default=0,help="If 1, new dac is created. Default is 0.")
+
+
 (opt, args) = parser.parse_args()
 sys.argv.append('-b')
 
@@ -63,7 +83,7 @@ if(opt.iter==0):
     if len(files)<1:
         sys.exit('Could not find ', filename, ' file')
     else: 
-        browseROCChain(files, fitVcalVcThr, opt.savePlots)
+        browseROCChain(files, fitVcalVcThr, opt.savePlots, opt.ignore)
         #initThresholdMinimizationSCurve(path, opt.iter)
 
 elif(opt.iter==100):
@@ -71,10 +91,10 @@ elif(opt.iter==100):
     createROCList(path)
 ## Iterations with SCurveSR
 else:
-    cmdrm = ('rm '+os.getcwd()+ '/failed_'+str(opt.iter)+'.txt' )
+    cmdrm = ('rm '+os.getcwd()+ '/'+opt.output+'_'+str(opt.iter)+'.txt' )
     print cmdrm
     os.system(cmdrm)
-    cmdrm = ('rm '+os.getcwd()+ '/delta_'+str(opt.iter)+'.txt' )
+    cmdrm = ('rm '+os.getcwd()+ '/'+opt.delta+'_'+str(opt.iter)+'.txt' )
     print cmdrm
     os.system(cmdrm)
     print path
@@ -86,9 +106,11 @@ else:
         sys.exit('Could not find ', filename, ' file')
     else: 
         browseROCChain(files, checkROCthr, path, opt.iter)
-        createNewDACsettings(path, opt.iter)
+        createNewDACsettings(path, opt.iter, opt.delta, opt.output, opt.mod, opt.makeNewDac)
 
 
-    
+if(opt.makeNewDac==0): print "N.B: new dac settings were not saved -> set makeNewDac to ture if you want to save them"
+
+        
 
 
